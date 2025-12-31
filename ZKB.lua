@@ -105,6 +105,7 @@ local function parseAmount(str)
              :gsub("'", "")             -- Remove thousand separators
              :gsub(",", ".")            -- Convert comma to decimal point
              :gsub("CHF%s*", "")        -- Remove currency indicator
+             :gsub("EUR%s*", "")        -- Remove currency indicator
              :gsub("%s+", "")           -- Remove all spaces
     
     return tonumber(str) or 0
@@ -353,6 +354,7 @@ function ListAccounts(knownAccounts)
         local name       = section:match('<div%s+class="headerName">.-<a%s+href="[^"]+"[^>]*>(.-)</a>')
         local number     = section:match('<div%s+class="headerNumber">.-<a[^>]*>(.-)</a>')
         local balance    = section:match('<div%s+class="headerWert">.-<a[^>]*>(.-)</a>')
+        local currency   = balance and balance:match('^(%u%u%u)')
 
         -- Falls Saldo nicht im sichtbaren HTML steht: aus data-options JSON ziehen (falls vorhanden)
         if (not balance or balance == "") then
@@ -407,15 +409,14 @@ function ListAccounts(knownAccounts)
                 transactionsUrl = fullUrl,
                 kontoId = kontoId,
                 bankCode = "",
-                currency = "CHF",
+                currency = currency,
                 type = accountType
             })
         end
     end
 
     -- Wenn immer noch nichts gefunden wurde, nicht hart abbrechen, sondern klarer Fehlerhinweis
-    if #accounts == 0 then
-        error("Could not extract any account data from HTML. Tipp: Die ZKB zeigt Konten nicht auf jeder Startseite – Fallback versucht. Bitte Startseite 'Meine Finanzen' verwenden, falls weiterhin leer.")
+    if #accounts == 0 then        error("Could not extract any account data from HTML. Tipp: Die ZKB zeigt Konten nicht auf jeder Startseite – Fallback versucht. Bitte Startseite 'Meine Finanzen' verwenden, falls weiterhin leer.")
     end
 
     return accounts
@@ -437,17 +438,30 @@ function RefreshAccount(account, since)
     end
     
     -- Extract current balance
-    local balanceExtract = response:match('<span%s+class="font%-size%-24%s+nospace">%s*<span>CHF%s*([^<]+)</span>') or
-                           response:match('<span%s+class="saldo%s+ng%-binding%s+ng%-scope"[^>]*>CHF%s*([^<]+)</span>')
-    local balance = balanceExtract and parseAmount(balanceExtract) or (account.balance or 0)
+	local currency = account.currency   -- z. B. "CHF" oder "EUR"
+	
+	local pattern1 =
+		'<span%s+class="font%-size%-24%s+nospace">%s*<span>' ..
+		currency ..
+		'%s*([^<]+)</span>'
+	
+	local pattern2 =
+		'<span%s+class="saldo%s+ng%-binding%s+ng%-scope"[^>]*>' ..
+		currency ..
+		'%s*([^<]+)</span>'
+	
+	local balanceExtract =
+		response:match(pattern1)
+	 or response:match(pattern2)
+	 
+     local balance = balanceExtract and parseAmount(balanceExtract) or (account.balance or 0)
     
     -- Extract transactions table
     local transactions = {}
     local tableHtml = response:match('<table%s+class="tbl%s+tbl%-data%s+kontoauszug%-brushup%-table".-</table>')
     
     if not tableHtml then
-        return { balance = balance, transactions = transactions, pendingBalance = 0 }
-    end
+        return { balance = balance, transactions = transactions, pendingBalance = 0 }    end
     
     -- Parse transactions using the working pattern from the old code
     local pattern = '<tr>%s*<td[^>]*>.-</td>%s*' ..
