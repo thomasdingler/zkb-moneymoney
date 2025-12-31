@@ -395,6 +395,11 @@ function ListAccounts(knownAccounts)
             if kontoId then
                 LocalStorage["kontoId_" .. cleanedNumber] = kontoId
             end
+            
+            local depotId = fullUrl:match("depotId=(%d+)")
+            if depotId then
+                LocalStorage["depotId_" .. cleanedNumber] = depotId
+            end
 
             local accountType = AccountTypeSavings
             if name:find("Girokonto") then
@@ -425,8 +430,15 @@ end
 -- Refresh account transactions
 function RefreshAccount(account, since)
     local kontoId = account.kontoId or LocalStorage["kontoId_" .. account.accountNumber]
+    local depotId = account.depotId or LocalStorage["depotId_" .. account.accountNumber]
+    
     if not kontoId then
-        error("No kontoId found for account " .. account.accountNumber)
+    	if not depotId then   
+        	error("Neither kontoId nor depotId found for account " .. account.accountNumber)
+        else
+-- no depot support atm
+            return { balance = account.balance, transactions = {}, pendingBalance = 0 }
+	    end
     end
     
     local transactionsUrl = HomePage() .. "/page/kontozahlungen/konto.page?dswid=2820&kontoId=" .. kontoId .. "&activeTabId=kontoauszug&hn=1"
