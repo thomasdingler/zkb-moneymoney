@@ -433,16 +433,18 @@ function RefreshAccount(account, since)
     local kontoId = account.kontoId or LocalStorage["kontoId_" .. account.accountNumber]
     local depotId = account.depotId or LocalStorage["depotId_" .. account.accountNumber]
     
-    if not kontoId then
-    	if not depotId then   
-        	error("Neither kontoId nor depotId found for account " .. account.accountNumber)
-        else
--- no depot support atm
-            return { balance = account.balance, transactions = {}, pendingBalance = 0 }
-	    end
+    if not kontoId and not depotId then
+        error("Neither kontoId nor depotId found for account " .. account.accountNumber)
     end
-    
-    local transactionsUrl = HomePage() .. "/page/kontozahlungen/konto.page?dswid=2820&kontoId=" .. kontoId .. "&activeTabId=kontoauszug&hn=1"
+
+    local transactionsUrl
+    if depotId then
+        -- Add depot transactions URL pattern here if available, adjust as needed:
+        transactionsUrl = HomePage() .. "/page/depotboersenhandel/depot.page?dswid=2820&depotId=" .. depotId .. "&activeTabId=depotauszug&hn=1"
+        -- Note: Further logic for depots could be added below as needed.
+    else
+        transactionsUrl = HomePage() .. "/page/kontozahlungen/konto.page?dswid=2820&kontoId=" .. kontoId .. "&activeTabId=kontoauszug&hn=1"
+    end
     updateHeadersFromCookies()
     
     local response = connection:request("GET", transactionsUrl, nil, nil, headers)
@@ -465,6 +467,10 @@ function RefreshAccount(account, since)
     or response:match(
            '<span%s+class="saldo%s+ng%-binding%s+ng%-scope"[^>]*>' ..
            currency .. '%s*([^<]+)</span>'
+       )
+    or response:match(
+           '<span%s+class="font%-size%-24"[^>]*>' ..
+           currency .. '[%s\194\160]+([^<]+)</span>'
        )
 	 
      local balance = balanceExtract and parseAmount(balanceExtract) or (account.balance or 0)
