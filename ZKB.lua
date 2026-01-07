@@ -353,7 +353,8 @@ function ListAccounts(knownAccounts)
         local accountUrl = section:match('<div%s+class="headerName">.-<a%s+href="([^"]+)"')
         local name       = section:match('<div%s+class="headerName">.-<a%s+href="[^"]+"[^>]*>(.-)</a>')
         local number     = section:match('<div%s+class="headerNumber">.-<a[^>]*>(.-)</a>')
-        local balance    = section:match('<div%s+class="headerWert">.-<a[^>]*>(.-)</a>')
+        local balance    = section:match('<div%s+class="headerWert">[%s%S]-<a[^>]*>%s*<span[^>]*>([^<]+)</span>%s*</a>')
+        				   or section:match('<div%s+class="headerWert">.-<a[^>]*>(.-)</a>')
         local currency   = balance and balance:match('^(%u%u%u)')
 
         -- Falls Saldo nicht im sichtbaren HTML steht: aus data-options JSON ziehen (falls vorhanden)
@@ -451,20 +452,20 @@ function RefreshAccount(account, since)
     
     -- Extract current balance
 	local currency = account.currency   -- z. B. "CHF" oder "EUR"
-	
-	local pattern1 =
-		'<span%s+class="font%-size%-24%s+nospace">%s*<span>' ..
-		currency ..
-		'%s*([^<]+)</span>'
-	
-	local pattern2 =
-		'<span%s+class="saldo%s+ng%-binding%s+ng%-scope"[^>]*>' ..
-		currency ..
-		'%s*([^<]+)</span>'
-	
+		
 	local balanceExtract =
-		response:match(pattern1)
-	 or response:match(pattern2)
+	    response:match(
+	    	'<span%s+class="font%-size%-24%s+nospace">[%s%S]-<span>%s*<span[^>]*>' .. 
+	    	currency .. '[%s\194\160]*([^<]+)</span>')
+
+    or response:match(
+           '<span%s+class="font%-size%-24%s+nospace">%s*<span>' ..
+           currency .. '%s*([^<]+)</span>'
+       )
+    or response:match(
+           '<span%s+class="saldo%s+ng%-binding%s+ng%-scope"[^>]*>' ..
+           currency .. '%s*([^<]+)</span>'
+       )
 	 
      local balance = balanceExtract and parseAmount(balanceExtract) or (account.balance or 0)
     
